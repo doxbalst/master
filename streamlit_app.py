@@ -1,78 +1,52 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 
-# إعدادات الصفحة
-st.set_page_config(page_title="محلل ملفات PEOF المتقدم", layout="wide")
-
-st.title("🚀 محرك استخراج البيانات المتقدم")
-st.markdown("---")
+st.title("📊 محرر الملفات النصية المرن")
+st.write("ارفع ملفك وحدد الأعمدة التي تريد تجميعها بنفسك")
 
 # رفع الملف
-uploaded_file = st.sidebar.file_uploader("ارفع الملف النصي هنا", type=['txt'])
+uploaded_file = st.file_uploader("اختر ملف PEOF01COMP.txt", type=['txt'])
 
 if uploaded_file:
-    # قراءة الملف
-    lines = [line.decode('utf-8') for line in uploaded_file.readlines()]
+    # قراءة الأسطر كقائمة
+    lines = uploaded_file.readlines()
+    lines = [line.decode('utf-8') for line in lines]
     
-    # واجهة التحكم في الجانب الأيسر (Sidebar)
-    st.sidebar.header("⚙️ إعدادات الأعمدة")
-    col_start = st.sidebar.number_input("نقطة البداية (Character Start)", 0, 100, 10)
-    col_end = st.sidebar.number_input("نهاية العمود (Character End)", col_start + 1, 100, 25)
-    column_name = st.sidebar.text_input("اسم العمود المستخرج", "المبالغ المالية")
+    st.info(f"تم تحميل {len(lines)} سطر.")
 
-    # معالجة البيانات
-    extracted_data = []
-    original_lines = []
-    
+    # معاينة السطر الأول لفهم الترتيب
+    st.subheader("🔍 معاينة السطر الأول (للمساعدة في التحديد)")
+    sample_line = lines[0]
+    st.code(sample_line)
+    st.caption("تلميح: كل حرف أو رقم يمثل موضعاً (0, 1, 2...)")
+
+    # التحكم في إحداثيات العمود
+    st.subheader("⚙️ التحكم في العمود")
+    col1, col2 = st.columns(2)
+    with col1:
+        start_pos = st.number_input("بداية العمود (رقم الحرف):", min_value=0, value=10)
+    with col2:
+        end_pos = st.number_input("نهاية العمود (رقم الحرف):", min_value=start_pos+1, value=25)
+
+    # استخراج البيانات بناءً على التحكم
+    data_list = []
     for line in lines:
-        if len(line) >= col_end:
-            segment = line[col_start:col_end].strip()
+        if len(line) >= end_pos:
+            val = line[start_pos:end_pos].strip()
+            # محاولة تحويل القيمة لرقم
             try:
-                # تحويل وتنظيف القيمة
-                val = float(segment)
-                extracted_data.append(val)
-                original_lines.append(line.strip())
+                data_list.append(float(val))
             except ValueError:
                 continue
 
-    # إنشاء DataFrame
-    df = pd.DataFrame({
-        "السطر الأصلي": original_lines,
-        column_name: extracted_data
-    })
-
-    # العرض المرئي للنتائج
-    col1, col2, col3 = st.columns(3)
-    col1.metric("إجمالي المجموع", f"{sum(extracted_data):,.2f}")
-    col2.metric("متوسط القيم", f"{sum(extracted_data)/len(extracted_data):,.2f}" if extracted_data else 0)
-    col3.metric("عدد السطور", len(extracted_data))
-
-    st.markdown("---")
-
-    # تقسيم الشاشة: الجدول والرسوم البيانية
-    tab1, tab2 = st.tabs(["📊 تحليل البيانات", "📋 الجدول المستخرج"])
-    
-    with tab1:
-        if not df.empty:
-            fig = px.histogram(df, x=column_name, title="توزيع القيم المستخرجة", color_discrete_sequence=['#00CC96'])
-            st.plotly_chart(fig, use_container_width=True)
-            
-            fig2 = px.line(df, y=column_name, title="تسلسل القيم عبر الملف")
-            st.plotly_chart(fig2, use_container_width=True)
-
-    with tab2:
-        st.dataframe(df, use_container_width=True)
+    # عرض النتائج
+    if data_list:
+        df_result = pd.DataFrame(data_list, columns=["القيم المستخرجة"])
         
-        # زر التحميل لملف Excel
-        csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label="📥 تحميل البيانات كـ Excel (CSV)",
-            data=csv,
-            file_name='extracted_report.csv',
-            mime='text/csv',
-        )
-
-else:
-    st.info("💡 يرجى رفع الملف من القائمة الجانبية للبدء في تحليل الأعمدة.")
-    st.image("https://via.placeholder.com/800x400.png?text=Waiting+for+File+Upload...", use_column_width=True)
+        col_res1, col_res2 = st.columns(2)
+        col_res1.metric("إجمالي المجموع", f"{sum(data_list):,.2f}")
+        col_res2.metric("عدد السطور المعالجة", len(data_list))
+        
+        st.dataframe(df_result)
+    else:
+        st.warning("لم يتم العثور على قيم رقمية في الإحداثيات المختارة.")
